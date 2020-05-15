@@ -1,5 +1,7 @@
 box:
  id: node
+
+
 # Build definition
 build:
   # The steps that will be executed on build
@@ -7,45 +9,63 @@ build:
     - script:
         code: |
           echo "USERNAME is $USERNAME"
-          echo "Image is going to built"
+          export IMAGE_BASE="testwerckernode"
+          echo "Image is $IMAGE_BASE"
     - internal/docker-build:
-       image-name: $IMAGE_BASE
+       image-name: $IMAGE_BASE 
        dockerfile: Dockerfile1
-
-    - internal/docker-push:
-           repository: $REPONAME
-           username: $USERNAME
-           password: $PASSWORD
-           image-name: $IMAGE_BASE
-           tag: $TAGNAME
-    - script:
-        code: |
-          export NODE_ENV='testing'
-          echo "Image is Pushed..."
-          echo "image pushed is $IMAGE_BASE"
     - internal/docker-run:
-           name: $CNT_NAME
-           image: ${REPONAME}:${TAGNAME}
-           username: $USERNAME
-           password: $PASSWORD
-           port: 80
+        image: $IMAGE_BASE
+        name: $CNT_NAME 
+        port: 80
     - script:
          code: |
            echo "Testing the container.."
            echo "CONTAINER NAME is $CNT_NAME"
-           echo "Successfully Created and Pulled from Cloud"
-    - script:
+           curl -o /var/output.html $CNT_NAME:80
+           cat /var/output.html 
+    - script: 
         name: Test the container that we started as a service
         code: |
-            if curlOutput=`curl -s $CNT_NAME:80`; then
+            if curlOutput=`curl -s $CNT_NAME:80`; then 
                 export expected=`echo $curlOutput|wc -c`
                 if [ $expected -eq 0 ]; then
-                    echo "Test failed container gave unexpected response: "
+                    echo "Test failed container gave unexpected response: " 
                     exit 1
                 else
-                    echo "TestPassed : container gave expected response: " $curl                                                                             Output
-                fi
-            else
+                    echo "TestPassed : container gave expected response: " $curlOutput
+                fi   
+            else 
                 echo "Test failed: container did not respond"
                 exit 1
-            fi
+            fi 
+push-build:
+ steps:
+    - internal/docker-push:
+        image: $IMAGE_BASE 
+        repository: ${USERNAME}/${IMAGE_BASE}
+        username: $USERNAME
+        password: $PASSWORD
+    - script:
+          name: Just-Pushed
+          code:
+             echo "Pushed the Image to Cloud"
+
+deploy-to-minikube:
+  box:
+        id: alpine
+        cmd: /bin/sh
+  steps:
+    - bash-template
+    
+    - script:
+        name: "Visualise Kubernetes config"
+        code: cat pod.yml
+    
+            
+    - kubectl:
+        name: create deployent    
+        server: $KUBERNETES_MASTER
+        token: $KUBERNETES_TOKEN
+        insecure-skip-tls-verify: true
+        command: create -f pod.yml 
